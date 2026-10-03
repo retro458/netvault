@@ -4,18 +4,22 @@
  * Parámetros: { id: number }  (llega desde la lista o por deep link netvault://devices/:id)
  * Header: botón de editar (lápiz) que abre DeviceForm con el mismo id.
  *
- * TODO UI: diseño final a cargo del equipo de UI.
+ * Arriba va la "etiqueta" del equipo (su IP en cinta amarilla), luego la ficha técnica
+ * agrupada en Red / Sistema / Registro, el cambio rápido de estado y el borrado.
  */
 import { useCallback, useLayoutEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as deviceService from '../services/deviceService';
-import StatusBadge from '../components/StatusBadge';
+import Button from '../components/Button';
 import EmptyState from '../components/EmptyState';
+import StatusBadge, { StatusLed } from '../components/StatusBadge';
+import TapeLabel from '../components/TapeLabel';
 import { useTheme } from '../context/ThemeContext';
 import { DEVICE_STATUS } from '../constants/deviceOptions';
-import { radius, spacing } from '../theme/colors';
+import { radius, spacing, withAlpha } from '../theme/colors';
+import { fonts, type } from '../theme/typography';
 
 export default function DeviceDetailScreen({ navigation, route }) {
   const { id } = route.params;
@@ -36,10 +40,17 @@ export default function DeviceDetailScreen({ navigation, route }) {
   useLayoutEffect(() => {
     navigation.setOptions({
       title: device?.hostname ?? 'Detalle',
+      headerTitleStyle: { fontFamily: device ? fonts.monoBold : fonts.bold, fontSize: device ? 16 : 17, color: colors.text },
       headerRight: device
         ? () => (
-            <Pressable onPress={() => navigation.navigate('DeviceForm', { id })} hitSlop={10}>
-              <Ionicons name="create-outline" size={24} color={colors.primary} />
+            <Pressable
+              onPress={() => navigation.navigate('DeviceForm', { id })}
+              accessibilityRole="button"
+              accessibilityLabel="Editar dispositivo"
+              hitSlop={10}
+              style={({ pressed }) => [styles.headerButton, { opacity: pressed ? 0.6 : 1 }]}
+            >
+              <Ionicons name="create-outline" size={24} color={colors.text} />
             </Pressable>
           )
         : undefined,
@@ -66,7 +77,7 @@ export default function DeviceDetailScreen({ navigation, route }) {
   if (device === undefined) {
     return (
       <View style={[styles.center, { backgroundColor: colors.background }]}>
-        <ActivityIndicator color={colors.primary} />
+        <ActivityIndicator color={colors.accent} />
       </View>
     );
   }
@@ -79,98 +90,152 @@ export default function DeviceDetailScreen({ navigation, route }) {
     );
   }
 
-  const fields = [
-    ['IP', device.ip],
-    ['MAC', device.mac],
-    ['Sistema operativo', device.os],
-    ['Rol', device.role],
-    ['Ubicación', device.location],
-    ['Origen', device.source === 'agent' ? 'Agente' : 'Manual'],
-    ['Último reporte', device.lastSeen],
-    ['Actualizado', device.updatedAt],
+  // [etiqueta, valor, ¿es dato de red? (se muestra en mono)]
+  const sections = [
+    {
+      title: 'Red',
+      rows: [
+        ['IP', device.ip, true],
+        ['MAC', device.mac, true],
+      ],
+    },
+    {
+      title: 'Sistema',
+      rows: [
+        ['Sistema operativo', device.os, false],
+        ['Rol', device.role, false],
+        ['Ubicación', device.location, false],
+      ],
+    },
+    {
+      title: 'Registro',
+      rows: [
+        ['Origen', device.source === 'agent' ? 'Agente' : 'Manual', false],
+        ['Último reporte', device.lastSeen, true],
+        ['Actualizado', device.updatedAt ? `${device.updatedAt} UTC` : null, true],
+      ],
+    },
   ];
 
   return (
     <ScrollView style={{ backgroundColor: colors.background }} contentContainerStyle={styles.container}>
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>
-        <Text style={[styles.hostname, { color: colors.text }]}>{device.hostname}</Text>
-        <StatusBadge status={device.status} />
-        {fields.map(([label, value]) => (
-          <View key={label} style={[styles.row, { borderColor: colors.border }]}>
-            <Text style={[styles.label, { color: colors.textMuted }]}>{label}</Text>
-            <Text style={[styles.value, { color: colors.text }]}>{value ?? '—'}</Text>
-          </View>
-        ))}
-        {device.notes ? (
-          <Text style={[styles.notes, { color: colors.text }]}>{device.notes}</Text>
-        ) : null}
-      </View>
-
-      <Text style={[styles.section, { color: colors.text }]}>Cambiar estado</Text>
-      <View style={styles.statusRow}>
-        {DEVICE_STATUS.map((s) => (
-          <Pressable
-            key={s.key}
-            onPress={() => changeStatus(s.key)}
-            style={[
-              styles.statusBtn,
-              {
-                borderColor: colors.status[s.key],
-                backgroundColor: device.status === s.key ? colors.status[s.key] : 'transparent',
-              },
-            ]}
-          >
-            <Ionicons name={s.icon} size={18} color={device.status === s.key ? '#fff' : colors.status[s.key]} />
-            <Text style={{ color: device.status === s.key ? '#fff' : colors.status[s.key], fontSize: 12 }}>
-              {s.label}
+      <View style={styles.hero}>
+        <TapeLabel size="lg">{device.ip ?? 'SIN IP'}</TapeLabel>
+        <View style={styles.heroMeta}>
+          <StatusBadge status={device.status} />
+          {device.role ? (
+            <Text style={[type.body, { color: colors.textMuted, flexShrink: 1 }]} numberOfLines={1}>
+              {device.role}
             </Text>
-          </Pressable>
-        ))}
+          ) : null}
+        </View>
       </View>
 
-      <Pressable style={[styles.delete, { borderColor: colors.danger }]} onPress={confirmDelete}>
-        <Ionicons name="trash-outline" size={20} color={colors.danger} />
-        <Text style={{ color: colors.danger, fontWeight: '600' }}>Eliminar dispositivo</Text>
-      </Pressable>
+      {sections.map((section) => (
+        <View key={section.title} style={styles.block}>
+          <Text style={[type.label, { color: colors.textMuted }]}>{section.title}</Text>
+          <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {section.rows.map(([label, value, mono], i) => (
+              <View
+                key={label}
+                style={[
+                  styles.row,
+                  i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+                ]}
+              >
+                <Text style={[type.body, { color: colors.textMuted }]}>{label}</Text>
+                <Text
+                  selectable
+                  style={[
+                    mono ? type.data : type.bodyStrong,
+                    styles.value,
+                    { color: value ? colors.text : colors.textMuted },
+                  ]}
+                >
+                  {value ?? '—'}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      ))}
+
+      {device.notes ? (
+        <View style={styles.block}>
+          <Text style={[type.label, { color: colors.textMuted }]}>Notas</Text>
+          <View style={[styles.group, styles.notes, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text selectable style={[type.body, { color: colors.text }]}>
+              {device.notes}
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      <View style={styles.block}>
+        <Text style={[type.label, { color: colors.textMuted }]}>Cambiar estado</Text>
+        <View style={styles.statusGrid}>
+          {DEVICE_STATUS.map((s) => {
+            const active = device.status === s.key;
+            const color = colors.status[s.key];
+            return (
+              <Pressable
+                key={s.key}
+                onPress={() => changeStatus(s.key)}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={`Marcar como ${s.label}`}
+                android_ripple={{ color: withAlpha(colors.text, 0.08) }}
+                style={[
+                  styles.statusBtn,
+                  {
+                    borderColor: active ? color : colors.border,
+                    backgroundColor: active ? withAlpha(color, 0.16) : colors.surface,
+                  },
+                ]}
+              >
+                <StatusLed status={s.key} size={10} />
+                <Text style={[type.label, { color: colors.text }]}>{s.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      </View>
+
+      <Button title="Eliminar dispositivo" icon="trash-outline" variant="danger" onPress={confirmDelete} style={styles.delete} />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  container: { padding: spacing.md, gap: spacing.md, width: '100%', maxWidth: 700, alignSelf: 'center' },
-  card: { padding: spacing.md, borderRadius: radius.md, gap: spacing.sm },
-  hostname: { fontSize: 22, fontWeight: '800' },
+  container: { padding: spacing.md, paddingBottom: spacing.xl, gap: spacing.lg, width: '100%', maxWidth: 700, alignSelf: 'center' },
+  headerButton: { padding: 4 },
+  hero: { gap: spacing.md },
+  heroMeta: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  block: { gap: spacing.sm },
+  group: { borderRadius: radius.lg, borderWidth: 1, overflow: 'hidden' },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     gap: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.md,
   },
-  label: { fontSize: 14 },
-  value: { fontSize: 14, fontWeight: '600', flexShrink: 1, textAlign: 'right' },
-  notes: { fontSize: 14, marginTop: spacing.sm, lineHeight: 20 },
-  section: { fontSize: 16, fontWeight: '700' },
-  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  value: { flexShrink: 1, textAlign: 'right' },
+  notes: { padding: spacing.md },
+  statusGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   statusBtn: {
     flexGrow: 1,
     flexBasis: '45%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
+    gap: 8,
+    minHeight: 48,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    overflow: 'hidden',
   },
-  delete: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-  },
+  delete: { marginTop: spacing.sm },
 });

@@ -11,6 +11,7 @@ import DeviceListScreen from '../screens/DeviceListScreen';
 import DeviceDetailScreen from '../screens/DeviceDetailScreen';
 import DeviceFormScreen from '../screens/DeviceFormScreen';
 import { useTheme } from '../context/ThemeContext';
+import { fonts } from '../theme/typography';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,9 +21,12 @@ export default function DevicesStack() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: { backgroundColor: colors.surface },
+        headerStyle: { backgroundColor: colors.background },
+        headerShadowVisible: false,
         headerTintColor: colors.text,
-        headerTitleStyle: { fontWeight: '700' },
+        headerTitleStyle: { fontFamily: fonts.bold, fontSize: 17, color: colors.text },
+        headerBackButtonDisplayMode: 'minimal',
+        contentStyle: { backgroundColor: colors.background },
       }}
     >
       <Stack.Screen name="DeviceList" component={DeviceListScreen} options={{ title: 'Dispositivos' }} />

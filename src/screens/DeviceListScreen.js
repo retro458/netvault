@@ -2,8 +2,6 @@
  * DeviceListScreen (ListScreen) — inventario leído desde SQLite con FlatList.
  *
  * Parámetros opcionales: { status?: string } para abrir ya filtrada (desde Home).
- *
- * TODO UI: diseño final a cargo del equipo de UI.
  */
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -12,14 +10,17 @@ import { Ionicons } from '@expo/vector-icons';
 import * as deviceService from '../services/deviceService';
 import DeviceCard from '../components/DeviceCard';
 import EmptyState from '../components/EmptyState';
+import { StatusLed } from '../components/StatusBadge';
 import { useTheme } from '../context/ThemeContext';
 import { DEVICE_STATUS } from '../constants/deviceOptions';
-import { radius, spacing } from '../theme/colors';
+import { radius, spacing, withAlpha } from '../theme/colors';
+import { fonts, type } from '../theme/typography';
 
 export default function DeviceListScreen({ navigation, route }) {
   const { colors } = useTheme();
   const [devices, setDevices] = useState([]);
   const [search, setSearch] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
   const [status, setStatus] = useState(route.params?.status ?? null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -32,8 +33,14 @@ export default function DeviceListScreen({ navigation, route }) {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerRight: () => (
-        <Pressable onPress={() => navigation.navigate('DeviceForm')} hitSlop={10}>
-          <Ionicons name="add-circle-outline" size={26} color={colors.primary} />
+        <Pressable
+          onPress={() => navigation.navigate('DeviceForm')}
+          accessibilityRole="button"
+          accessibilityLabel="Registrar dispositivo"
+          hitSlop={8}
+          style={({ pressed }) => [styles.addButton, { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 }]}
+        >
+          <Ionicons name="add" size={24} color={colors.primaryText} />
         </Pressable>
       ),
     });
@@ -58,20 +65,38 @@ export default function DeviceListScreen({ navigation, route }) {
   };
 
   const filters = [{ key: null, label: 'Todos' }, ...DEVICE_STATUS];
+  const activeLabel = status ? DEVICE_STATUS.find((s) => s.key === status)?.label : null;
+  const count = `${devices.length} ${devices.length === 1 ? 'equipo' : 'equipos'}`;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.searchBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View
+        style={[
+          styles.searchBox,
+          { backgroundColor: colors.surface, borderColor: searchFocused ? colors.accent : colors.border },
+        ]}
+      >
         <Ionicons name="search" size={18} color={colors.textMuted} />
         <TextInput
           value={search}
           onChangeText={setSearch}
-          placeholder="Buscar por hostname, IP, rol o SO"
-          placeholderTextColor={colors.textMuted}
+          onFocus={() => setSearchFocused(true)}
+          onBlur={() => setSearchFocused(false)}
+          placeholder="Hostname, IP, rol o sistema"
+          placeholderTextColor={withAlpha(colors.textMuted, 0.75)}
+          selectionColor={withAlpha(colors.primary, 0.45)}
+          cursorColor={colors.accent}
+          accessibilityLabel="Buscar dispositivos"
           style={[styles.searchInput, { color: colors.text }]}
           autoCapitalize="none"
           autoCorrect={false}
+          returnKeyType="search"
         />
+        {search ? (
+          <Pressable onPress={() => setSearch('')} hitSlop={12} accessibilityRole="button" accessibilityLabel="Borrar búsqueda">
+            <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+          </Pressable>
+        ) : null}
       </View>
 
       <FlatList
@@ -86,6 +111,8 @@ export default function DeviceListScreen({ navigation, route }) {
           return (
             <Pressable
               onPress={() => setStatus(item.key)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
               style={[
                 styles.chip,
                 {
@@ -94,9 +121,8 @@ export default function DeviceListScreen({ navigation, route }) {
                 },
               ]}
             >
-              <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: '600' }}>
-                {item.label}
-              </Text>
+              {item.key ? <StatusLed status={item.key} size={8} /> : null}
+              <Text style={[type.label, { color: active ? colors.primaryText : colors.text }]}>{item.label}</Text>
             </Pressable>
           );
         }}
@@ -110,12 +136,31 @@ export default function DeviceListScreen({ navigation, route }) {
         )}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
         contentContainerStyle={styles.list}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.accent}
+            colors={[colors.accent]}
+            progressBackgroundColor={colors.surface}
+          />
+        }
+        ListHeaderComponent={
+          devices.length > 0 ? (
+            <Text style={[type.caption, styles.count, { color: colors.textMuted }]}>
+              {activeLabel ? `${count} · ${activeLabel}` : count}
+            </Text>
+          ) : null
+        }
         ListEmptyComponent={
           <EmptyState
             icon="server-outline"
             title="Sin dispositivos"
-            subtitle={search || status ? 'Prueba con otro filtro.' : 'Toca + para registrar el primero.'}
+            subtitle={
+              search || status
+                ? 'Ningún equipo coincide con la búsqueda o el filtro.'
+                : 'Toca + para registrar el primero.'
+            }
           />
         }
       />
@@ -125,6 +170,7 @@ export default function DeviceListScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  addButton: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -133,11 +179,20 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     paddingHorizontal: spacing.md,
     borderRadius: radius.md,
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
-  searchInput: { flex: 1, paddingVertical: 10, fontSize: 15 },
+  searchInput: { flex: 1, minHeight: 48, fontFamily: fonts.regular, fontSize: 15 },
   chipsList: { flexGrow: 0 },
   chips: { paddingHorizontal: spacing.md, gap: spacing.sm, paddingBottom: spacing.sm },
-  chip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
-  list: { padding: spacing.md, paddingTop: spacing.sm, flexGrow: 1 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  list: { padding: spacing.md, paddingTop: spacing.xs, flexGrow: 1, width: '100%', maxWidth: 760, alignSelf: 'center' },
+  count: { marginBottom: spacing.sm },
 });

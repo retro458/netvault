@@ -1,32 +1,26 @@
 /**
  * LoginScreen — inicio de sesión simulado.
  * Credenciales demo: admin / admin123 (ver services/authStorage.js).
- *
- * TODO UI: diseño final a cargo del equipo de UI.
  */
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Button,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Button from '../components/Button';
 import FormField from '../components/FormField';
+import Logo from '../components/Logo';
+import TapeLabel from '../components/TapeLabel';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { spacing } from '../theme/colors';
+import { radius, spacing, withAlpha } from '../theme/colors';
+import { type } from '../theme/typography';
 
 export default function LoginScreen() {
   const { signIn } = useAuth();
   const { colors } = useTheme();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -49,37 +43,58 @@ export default function LoginScreen() {
           {/* maxWidth mantiene el formulario legible en tablets */}
           <View style={styles.container}>
             <View style={styles.header}>
-              <Ionicons name="git-network-outline" size={64} color={colors.primary} />
-              <Text style={[styles.title, { color: colors.text }]}>NetVault</Text>
-              <Text style={[styles.subtitle, { color: colors.textMuted }]}>Inventario de red</Text>
+              <Logo size={60} />
+              <Text style={[type.display, styles.title, { color: colors.text }]}>NetVault</Text>
+              <TapeLabel>INVENTARIO DE RED</TapeLabel>
             </View>
 
-            <FormField
-              label="Usuario"
-              value={username}
-              onChangeText={setUsername}
-              placeholder="admin"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            <FormField
-              label="Contraseña"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••"
-              secureTextEntry
-              onSubmitEditing={handleLogin}
-            />
+            <View style={styles.form}>
+              <FormField
+                label="Usuario"
+                value={username}
+                onChangeText={setUsername}
+                placeholder="admin"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="username"
+                mono
+              />
+              <FormField
+                label="Contraseña"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={handleLogin}
+                mono
+                right={
+                  <Pressable
+                    onPress={() => setShowPassword((v) => !v)}
+                    hitSlop={12}
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textMuted} />
+                  </Pressable>
+                }
+              />
 
-            {error ? <Text style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
+              {error ? (
+                <View
+                  accessibilityLiveRegion="polite"
+                  style={[styles.error, { backgroundColor: withAlpha(colors.danger, 0.12), borderColor: withAlpha(colors.danger, 0.5) }]}
+                >
+                  <Ionicons name="alert-circle" size={18} color={colors.danger} />
+                  <Text style={[type.body, { color: colors.text, flex: 1 }]}>{error}</Text>
+                </View>
+              ) : null}
 
-            {loading ? (
-              <ActivityIndicator color={colors.primary} />
-            ) : (
-              <Button title="Iniciar sesión" color={colors.primary} onPress={handleLogin} />
-            )}
+              <Button title="Entrar" icon="log-in-outline" onPress={handleLogin} loading={loading} style={styles.submit} />
+            </View>
 
-            <Text style={[styles.hint, { color: colors.textMuted }]}>Demo: admin / admin123</Text>
+            <Text style={[type.dataSmall, styles.hint, { color: colors.textMuted }]}>Demo · admin / admin123</Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -91,10 +106,18 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   flex: { flex: 1 },
   scroll: { flexGrow: 1, justifyContent: 'center', padding: spacing.lg },
-  container: { width: '100%', maxWidth: 420, alignSelf: 'center', gap: spacing.md },
-  header: { alignItems: 'center', marginBottom: spacing.lg },
-  title: { fontSize: 32, fontWeight: '800', marginTop: spacing.sm },
-  subtitle: { fontSize: 15 },
-  error: { textAlign: 'center' },
-  hint: { textAlign: 'center', fontSize: 12, marginTop: spacing.sm },
+  container: { width: '100%', maxWidth: 420, alignSelf: 'center', gap: spacing.xl },
+  header: { alignItems: 'flex-start', gap: spacing.md },
+  title: { marginTop: spacing.xs },
+  form: { gap: spacing.md },
+  error: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: 12,
+    borderRadius: radius.md,
+    borderWidth: 1,
+  },
+  submit: { marginTop: spacing.xs },
+  hint: { textAlign: 'center' },
 });

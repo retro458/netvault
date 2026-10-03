@@ -1,60 +1,64 @@
 /**
- * Tarjeta de un dispositivo para la FlatList.
+ * Fila de un dispositivo para la FlatList.
+ * Primera línea: LED + hostname (mono) y la IP al extremo, que es lo que se busca primero.
+ * Segunda línea: rol · sistema operativo y el estado escrito.
  * Props: device (Device), onPress () => void
- *
- * TODO UI: diseño final a cargo del equipo de UI.
  */
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import StatusBadge from './StatusBadge';
+import { StatusLed } from './StatusBadge';
 import { useTheme } from '../context/ThemeContext';
-import { radius, spacing } from '../theme/colors';
+import { DEVICE_STATUS } from '../constants/deviceOptions';
+import { radius, spacing, withAlpha } from '../theme/colors';
+import { fonts, type } from '../theme/typography';
 
 export default function DeviceCard({ device, onPress }) {
   const { colors } = useTheme();
+  const statusLabel = DEVICE_STATUS.find((s) => s.key === device.status)?.label ?? device.status;
+  const subtitle = [device.role, device.os].filter(Boolean).join(' · ') || 'Sin rol ni sistema';
 
   return (
     <Pressable
       onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${device.hostname}, ${statusLabel}, ${device.ip ?? 'sin IP'}`}
+      android_ripple={{ color: withAlpha(colors.text, 0.08) }}
       style={({ pressed }) => [
         styles.card,
-        { backgroundColor: colors.surface, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+        {
+          backgroundColor: pressed ? colors.surfaceRaised : colors.surface,
+          borderColor: colors.border,
+        },
       ]}
     >
-      <View style={[styles.iconBox, { backgroundColor: colors.background }]}>
-        <Ionicons name="server-outline" size={22} color={colors.primary} />
-      </View>
-      <View style={styles.info}>
+      <View style={styles.line}>
+        <StatusLed status={device.status} />
         <Text style={[styles.hostname, { color: colors.text }]} numberOfLines={1}>
           {device.hostname}
         </Text>
-        <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
-          {device.ip ?? 'Sin IP'} · {device.role ?? 'Sin rol'}
+        <Text style={[type.data, { color: device.ip ? colors.text : colors.textMuted }]} numberOfLines={1}>
+          {device.ip ?? 'sin IP'}
         </Text>
-        <StatusBadge status={device.status} />
       </View>
-      <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+      <View style={styles.line}>
+        <Text style={[type.body, styles.subtitle, { color: colors.textMuted }]} numberOfLines={1}>
+          {subtitle}
+        </Text>
+        <Text style={[type.caption, { color: colors.textMuted }]}>{statusLabel}</Text>
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
+    gap: 6,
+    paddingVertical: 14,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
-  iconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.sm,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  info: { flex: 1, gap: 4 },
-  hostname: { fontSize: 16, fontWeight: '700' },
-  meta: { fontSize: 13 },
+  line: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  hostname: { flex: 1, fontFamily: fonts.monoBold, fontSize: 15, lineHeight: 20 },
+  subtitle: { flex: 1, fontSize: 13, lineHeight: 18 },
 });
